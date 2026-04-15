@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Life Projects Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#0f0f0f;color:#e0ddd6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
+.wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+
+/* top bar */
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.page-title{font-size:19px;font-weight:500;color:#e0ddd6;background:transparent;border:none;outline:none;flex:1;caret-color:#4caf7d}
+.page-title:focus{border-bottom:1px solid #2a2a2a}
+.save-pill{font-size:11px;padding:3px 10px;border-radius:10px;background:#111;border:0.5px solid #222;color:#444;transition:all .3s;white-space:nowrap}
+.save-pill.saving{color:#4caf7d;border-color:#1a3a2a}
+.save-pill.saved{color:#335533;border-color:#1a2a1a}
+.save-pill.error{color:#a03030;border-color:#3a1a1a}
+
+.page-sub{font-size:12px;color:#484848;margin-bottom:1.5rem;background:transparent;border:none;outline:none;width:100%;caret-color:#4caf7d}
+.page-sub:focus{border-bottom:1px solid #222}
+
+/* tabs */
+.tabs{display:flex;gap:6px;margin-bottom:1.4rem;flex-wrap:wrap}
+.tab{padding:5px 15px;border-radius:20px;border:0.5px solid #242424;background:transparent;font-size:12px;cursor:pointer;color:#666;transition:all .15s}
+.tab:hover{border-color:#3a3a3a;color:#aaa}
+.tab.active{background:#0c1f10;color:#4caf7d;border-color:#1a3a1a;font-weight:500}
+.view{display:none}
+.view.active{display:block}
+
+/* section label */
+.slabel{font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:#3a3a3a;margin-bottom:.65rem;margin-top:1.2rem;display:flex;align-items:center;gap:8px}
+.slabel hr{flex:1;border:none;border-top:0.5px solid #1c1c1c}
+
+/* project cards */
+.prow{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:.4rem}
+.pcard{background:#141414;border:0.5px solid #202020;border-radius:10px;padding:.75rem .9rem;cursor:pointer;transition:border-color .15s}
+.pcard:hover{border-color:#333}
+.pcard.active{border:1.5px solid #1a3a2a;background:#0f1a12}
+.pcard-top{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.pcard-title{font-size:13px;font-weight:500;color:#ccc;background:transparent;border:none;outline:none;width:calc(100% - 18px);caret-color:#4caf7d}
+.pcard-sub{font-size:11px;color:#3d3d3d;background:transparent;border:none;outline:none;width:100%;caret-color:#4caf7d}
+
+/* detail panel */
+.detail{background:#141414;border:0.5px solid #202020;border-radius:10px;padding:1.1rem 1.2rem;margin-top:.9rem;margin-bottom:.9rem}
+.detail-head{display:flex;align-items:center;gap:8px;margin-bottom:.9rem;flex-wrap:wrap}
+.detail-title{font-size:15px;font-weight:500;color:#ddd}
+.badge{font-size:10px;padding:2px 9px;border-radius:8px;font-weight:500}
+.freq-lbl{font-size:10px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:#3d3d3d;margin:1rem 0 .4rem;display:block}
+.task-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:0.5px solid #1c1c1c;position:relative}
+.task-row:last-of-type{border-bottom:none}
+.task-row:hover .delbtn{opacity:1}
+.chk{width:16px;height:16px;border-radius:4px;border:0.5px solid #333;flex-shrink:0;cursor:pointer;margin-top:2px;display:flex;align-items:center;justify-content:center;transition:all .15s;min-width:16px}
+.chk:hover{border-color:#4a4a4a}
+.chk.on{background:#0c2018;border-color:#1a4a2a}
+.chk.on::after{content:'✓';font-size:9px;color:#4caf7d}
+.task-body{flex:1;min-width:0}
+.task-name{font-size:12px;color:#bbb;background:transparent;border:none;outline:none;width:100%;line-height:1.5;caret-color:#4caf7d}
+.task-name.done{text-decoration:line-through;color:#333}
+.task-note{font-size:11px;color:#3d3d3d;background:transparent;border:none;outline:none;width:100%;caret-color:#4caf7d;margin-top:1px}
+.delbtn{opacity:0;font-size:13px;color:#2d2d2d;cursor:pointer;padding:0 3px;background:none;border:none;transition:opacity .15s,color .15s;flex-shrink:0;line-height:1}
+.delbtn:hover{color:#b03030}
+.addbtn{font-size:11px;color:#333;cursor:pointer;padding:5px 0;display:flex;align-items:center;gap:4px;background:none;border:none;transition:color .15s;margin-top:2px}
+.addbtn:hover{color:#4caf7d}
+
+/* timeline */
+.tl-wrap{margin-top:.2rem}
+.month-block{margin-bottom:2rem}
+.month-ttl{font-size:14px;font-weight:500;color:#ccc;margin-bottom:.65rem;display:flex;align-items:center;gap:7px}
+.mbadge{font-size:10px;padding:2px 8px;border-radius:8px}
+.mb1{background:#081a0c;color:#3a8e55}
+.mb2{background:#10102a;color:#6a62cc}
+.mb3{background:#1a1005;color:#9a7030}
+.week-row{display:grid;grid-template-columns:52px 1fr;margin-bottom:4px}
+.week-lbl{font-size:11px;color:#3a3a3a;padding:6px 8px 6px 0;background:transparent;border:none;outline:none;caret-color:#4caf7d}
+.week-items{border-left:1.5px solid #1c1c1c;padding:4px 0 4px 10px;display:flex;flex-direction:column;gap:3px}
+.week-item{display:flex;align-items:flex-start;gap:5px;position:relative;padding:2px 0}
+.week-item:hover .delbtn{opacity:1}
+.idot{width:5px;height:5px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.ibody{flex:1;min-width:0}
+.itext{font-size:12px;color:#bbb;background:transparent;border:none;outline:none;width:100%;line-height:1.5;caret-color:#4caf7d}
+.itext.done{text-decoration:line-through;color:#333}
+.iproj{font-size:10px;color:#3a3a3a;background:transparent;border:none;outline:none;width:100%;caret-color:#4caf7d}
+.add-week-btn{font-size:11px;color:#2a2a2a;cursor:pointer;padding:3px 0 3px 10px;background:none;border:none;border-left:1.5px solid #1c1c1c;transition:color .15s;margin-top:1px;display:block}
+.add-week-btn:hover{color:#4caf7d}
+
+/* loading overlay */
+.loading{position:fixed;inset:0;background:#0f0f0f;display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:12px}
+.loading.hidden{display:none}
+.spinner{width:28px;height:28px;border:2px solid #1c1c1c;border-top-color:#4caf7d;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:#444}
+
+input[type=text]::placeholder{color:#2a2a2a}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">載入中...</div>
+</div>
+
+<div class="wrap">
+  <div class="topbar">
+    <input class="page-title" id="ptitle" type="text" value="Life Projects Dashboard" placeholder="標題" oninput="schedule()">
+    <div class="save-pill" id="spill">就緒</div>
+  </div>
+  <input class="page-sub" id="psub" type="text" value="重要順序：事業 > 投資 > 好奇　｜　核心：打造一個值得被記住的創作者。" oninput="schedule()">
+
+  <div class="tabs">
+    <button class="tab active" onclick="sw('projects',this)">Projects 細節</button>
+    <button class="tab" onclick="sw('timeline',this)">3 個月計畫</button>
+  </div>
+
+  <div class="view active" id="view-projects">
+    <div class="slabel">🟡 事業 — Priority 1 <hr></div>
+    <div class="prow">
+      <div class="pcard" onclick="sel(this,'biz1')">
+        <div class="pcard-top"><span class="dot" style="background:#EF9F27"></span><input class="pcard-title" type="text" value="等待被邀請系列" oninput="schedule()" onclick="e.stopPropagation()"></div>
+        <input class="pcard-sub" type="text" value="官網 · 案例 · FB 分享" oninput="schedule()" onclick="e.stopPropagation()">
+      </div>
+      <div class="pcard" onclick="sel(this,'biz2')">
+        <div class="pcard-top"><span class="dot" style="background:#EF9F27"></span><input class="pcard-title" type="text" value="AI 影片製作" oninput="schedule()" onclick="e.stopPropagation()"></div>
+        <input class="pcard-sub" type="text" value="腳本 · 拍攝 · 剪輯發布" oninput="schedule()" onclick="e.stopPropagation()">
+      </div>
+    </div>
+    <div class="slabel">🟢 投資 — Priority 2 <hr></div>
+    <div class="prow">
+      <div class="pcard" onclick="sel(this,'inv')">
+        <div class="pcard-top"><span class="dot" style="background:#1D9E75"></span><input class="pcard-title" type="text" value="台股投資系統" oninput="schedule()" onclick="e.stopPropagation()"></div>
+        <input class="pcard-sub" type="text" value="規則 · 操作紀律 · 知識" oninput="schedule()" onclick="e.stopPropagation()">
+      </div>
+    </div>
+    <div class="slabel">🟣 好奇 — Priority 3 <hr></div>
+    <div class="prow">
+      <div class="pcard" onclick="sel(this,'travel')">
+        <div class="pcard-top"><span class="dot" style="background:#7F77DD"></span><input class="pcard-title" type="text" value="旅行企劃" oninput="schedule()" onclick="e.stopPropagation()"></div>
+        <input class="pcard-sub" type="text" value="選地點 · 歷史研究 · 內容" oninput="schedule()" onclick="e.stopPropagation()">
+      </div>
+      <div class="pcard" onclick="sel(this,'jp')">
+        <div class="pcard-top"><span class="dot" style="background:#7F77DD"></span><input class="pcard-title" type="text" value="日文精進" oninput="schedule()" onclick="e.stopPropagation()"></div>
+        <input class="pcard-sub" type="text" value="每日複習 · 聽力 · 輸出" oninput="schedule()" onclick="e.stopPropagation()">
+      </div>
+      <div class="pcard" onclick="sel(this,'guitar')">
+        <div class="pcard-top"><span class="dot" style="background:#7F77DD"></span><input class="pcard-title" type="text" value="吉他學習" oninput="schedule()" onclick="e.stopPropagation()"></div>
+        <input class="pcard-sub" type="text" value="指法 · 曲目 · 錄音" oninput="schedule()" onclick="e.stopPropagation()">
+      </div>
+      <div class="pcard" onclick="sel(this,'edit')">
+        <div class="pcard-top"><span class="dot" style="background:#7F77DD"></span><input class="pcard-title" type="text" value="剪片思考與技巧" oninput="schedule()" onclick="e.stopPropagation()"></div>
+        <input class="pcard-sub" type="text" value="學習 · 實作 · 積累" oninput="schedule()" onclick="e.stopPropagation()">
+      </div>
+    </div>
+    <div id="detail-area"></div>
+  </div>
+
+  <div class="view" id="view-timeline">
+    <div class="tl-wrap" id="tl"></div>
+  </div>
+</div>
+
+<script>
+// ── Supabase init ──────────────────────────────────────────
+const SUPA_URL = 'https://mboytgaszgjbonmajjai.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ib3l0Z2FzemdqYm9ubWFqamFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyMjUzODgsImV4cCI6MjA5MTgwMTM4OH0.RtEJSfih0BFmUg-axSLe_Xrzq3768epAVysu95nC1mQ';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+const ROW_ID = 'main';
+
+// ── Default data ───────────────────────────────────────────
+const DEF_PDATA = {
+  biz1:{title:'等待被邀請系列',badge:'事業 · 持續進行',bg:'#0f1f05',fc:'#7ab840',groups:[
+    {label:'每日',tasks:[{n:'在臉書發一則 AI 思考或觀察（100 字就好）',note:'',done:false}]},
+    {label:'每週',tasks:[{n:'檢查官網是否有需更新的內容',note:'',done:false},{n:'研究 1 個潛在合作方向或市場機會',note:'',done:false}]},
+    {label:'每月',tasks:[{n:'深度更新官網：加入新案例、更新文案',note:'',done:false},{n:'回顧本月 FB 貼文效果，調整方向',note:'',done:false}]}
+  ]},
+  biz2:{title:'AI 影片製作',badge:'事業 · 規劃啟動',bg:'#0f1f05',fc:'#7ab840',groups:[
+    {label:'每週',tasks:[{n:'研究一個新 AI 工具或應用場景',note:'累積影片素材',done:false},{n:'推進目前影片的一個環節',note:'腳本/拍攝/剪輯',done:false}]},
+    {label:'每集節奏（3–4 週）',tasks:[{n:'Week 1：確定主題 + 腦力激盪',note:'',done:false},{n:'Week 2：腳本初稿完成',note:'',done:false},{n:'Week 3：拍攝完成',note:'',done:false},{n:'Week 4：剪輯 + 發布',note:'',done:false}]}
+  ]},
+  inv:{title:'台股投資系統',badge:'投資 · 進行中',bg:'#051a10',fc:'#3a9e65',groups:[
+    {label:'一次性（本週完成）',tasks:[{n:'寫下投資規則：逢低幾 % 才補？高點多少不追買？',note:'白紙黑字，不寫不算',done:false},{n:'設定持倉上限',note:'避免超過自己能承受的波動',done:false}]},
+    {label:'每週',tasks:[{n:'固定時間檢視持倉，記錄這週決策與理由',note:'',done:false},{n:'閱讀 1 篇科技 / 產業新聞',note:'思考與持倉的關聯',done:false}]},
+    {label:'每月',tasks:[{n:'月度複盤：有沒有違反自己的規則？',note:'',done:false},{n:'評估是否需要豐富化投資品項',note:'100 萬前專注台股',done:false}]}
+  ]},
+  travel:{title:'旅行企劃',badge:'好奇 · 規劃中',bg:'#12122a',fc:'#7f77dd',groups:[
+    {label:'旅行前 6 週',tasks:[{n:'確定目的地',note:'查 2–3 個候選，做簡單比較',done:false},{n:'研究目的地的地理歷史背景',note:'做筆記，這是影片骨幹',done:false},{n:'確定 YouTube 影片角度',note:'主題、片長、風格',done:false}]},
+    {label:'旅行前 2 週',tasks:[{n:'完成行程草案，標記哪裡要拍',note:'',done:false},{n:'準備拍攝設備清單',note:'',done:false},{n:'腳本重點列出',note:'知道要說什麼就好',done:false}]},
+    {label:'旅行中',tasks:[{n:'按計畫拍攝，同時享受旅行',note:'不要為了拍攝犧牲體驗',done:false}]},
+    {label:'回來後 3 週內',tasks:[{n:'整理素材，剪輯影片',note:'',done:false},{n:'發布 YouTube，同步寫 FB 貼文',note:'',done:false}]}
+  ]},
+  jp:{title:'日文精進',badge:'好奇 · 持續中',bg:'#12122a',fc:'#7f77dd',groups:[
+    {label:'每日（10–20 分鐘）',tasks:[{n:'Anki 單字複習（或新單字 5–10 個）',note:'',done:false},{n:'用日文寫 3 句日記',note:'輸出是關鍵',done:false}]},
+    {label:'每週',tasks:[{n:'聽日文 Podcast 或 YouTube（15–20 分鐘）',note:'推薦：日本語の森',done:false},{n:'看一集有字幕的日劇或動漫',note:'娛樂 + 學習',done:false}]},
+    {label:'每月',tasks:[{n:'自我測試：找一篇文章閱讀，評估理解度',note:'',done:false},{n:'回顧本月學了哪些新字',note:'整理成清單',done:false}]}
+  ]},
+  guitar:{title:'吉他學習',badge:'好奇 · 持續中',bg:'#12122a',fc:'#7f77dd',groups:[
+    {label:'每週 3–4 次（每次 20–30 分鐘）',tasks:[{n:'暖身：基礎指法練習 5 分鐘',note:'',done:false},{n:'主要：練習目標曲目的一個段落',note:'',done:false},{n:'結尾：從頭彈一遍',note:'感受整體流暢度',done:false}]},
+    {label:'每月',tasks:[{n:'錄音一次，存檔對照進步',note:'不求完美，求記錄',done:false},{n:'決定下個月目標曲目或技巧',note:'',done:false}]},
+    {label:'里程碑（3 個月）',tasks:[{n:'第 1 首目標曲目完整彈奏',note:'',done:false},{n:'開始第 2 首，難度略微提升',note:'',done:false}]}
+  ]},
+  edit:{title:'剪片思考與技巧',badge:'好奇 · 積累中',bg:'#12122a',fc:'#7f77dd',groups:[
+    {label:'每週',tasks:[{n:'看 1 支剪片教學，記下 1–2 個技巧',note:'',done:false},{n:'觀察喜歡的 YouTuber 剪輯方式',note:'寫下筆記',done:false}]},
+    {label:'每 2 週',tasks:[{n:'實際應用新技巧在影片中',note:'學了就用，不只看',done:false}]},
+    {label:'每月',tasks:[{n:'回顧自己剪的影片，找 2–3 個改進點',note:'',done:false}]}
+  ]}
+};
+
+const DEF_TL = [
+  {month:'第 1 個月',mb:'mb1',mt:'建立基礎',weeks:[
+    {lbl:'第 1 週',items:[{c:'#EF9F27',t:'官網全面盤點，列出需要更新的清單',p:'等待被邀請系列',done:false},{c:'#1D9E75',t:'白紙黑字寫下投資規則（觸發條件、停損邏輯）',p:'台股投資系統',done:false},{c:'#7F77DD',t:'確定日文目前程度，選定一套學習資源',p:'日文精進',done:false}]},
+    {lbl:'第 2 週',items:[{c:'#EF9F27',t:'完成官網更新，加入最新案例',p:'等待被邀請系列',done:false},{c:'#EF9F27',t:'AI 影片第一個主題腦力激盪，確定方向',p:'AI 影片製作',done:false},{c:'#7F77DD',t:'確定旅遊目的地（查 2–3 個候選地點）',p:'旅行企劃',done:false},{c:'#7F77DD',t:'吉他：評估現有程度，訂學習目標曲目',p:'吉他學習',done:false}]},
+    {lbl:'第 3 週',items:[{c:'#EF9F27',t:'AI 影片腳本初稿完成',p:'AI 影片製作',done:false},{c:'#7F77DD',t:'開始研究旅遊地點的地理歷史背景，記筆記',p:'旅行企劃',done:false},{c:'#7F77DD',t:'看 2 支剪片教學，記下學到的技巧',p:'剪片技巧',done:false}]},
+    {lbl:'第 4 週',items:[{c:'#EF9F27',t:'AI 影片拍攝完成，開始剪輯',p:'AI 影片製作',done:false},{c:'#EF9F27',t:'FB 發文 3 篇（AI 思考 / 觀察）',p:'等待被邀請系列',done:false},{c:'#1D9E75',t:'第一次週記帳：檢視持倉，記錄決策理由',p:'台股投資系統',done:false}]}
+  ]},
+  {month:'第 2 個月',mb:'mb2',mt:'加速執行',weeks:[
+    {lbl:'第 5 週',items:[{c:'#EF9F27',t:'第一支 AI 影片發布，觀察數據',p:'AI 影片製作',done:false},{c:'#7F77DD',t:'旅行行程草案完成（景點 + 拍攝計畫）',p:'旅行企劃',done:false},{c:'#7F77DD',t:'日文：開始用日文寫簡單日記（一天 3 句）',p:'日文精進',done:false}]},
+    {lbl:'第 6 週',items:[{c:'#EF9F27',t:'AI 影片第二集腳本完成',p:'AI 影片製作',done:false},{c:'#EF9F27',t:'盤點可主動聯繫的潛在合作對象 3–5 個',p:'等待被邀請系列',done:false},{c:'#7F77DD',t:'吉他：目標曲目練到完整彈一遍（允許不完美）',p:'吉他學習',done:false}]},
+    {lbl:'第 7 週',items:[{c:'#EF9F27',t:'第二支 AI 影片拍攝 + 剪輯',p:'AI 影片製作',done:false},{c:'#7F77DD',t:'旅行 YouTube 企劃確定（主題、角度、片長）',p:'旅行企劃',done:false},{c:'#7F77DD',t:'用之前學的剪片技巧剪一個練習短片',p:'剪片技巧',done:false}]},
+    {lbl:'第 8 週',items:[{c:'#EF9F27',t:'第二支影片發布，FB 同步推廣',p:'AI 影片製作',done:false},{c:'#1D9E75',t:'月度投資回顧：操作對了什麼？哪裡可以改？',p:'台股投資系統',done:false},{c:'#7F77DD',t:'吉他錄音一次，存檔留作進度對照',p:'吉他學習',done:false}]}
+  ]},
+  {month:'第 3 個月',mb:'mb3',mt:'收成與複盤',weeks:[
+    {lbl:'第 9 週',items:[{c:'#7F77DD',t:'出發旅行（執行拍攝計畫）',p:'旅行企劃',done:false},{c:'#EF9F27',t:'AI 影片第三集主題確定，腳本開始',p:'AI 影片製作',done:false}]},
+    {lbl:'第 10 週',items:[{c:'#7F77DD',t:'旅行素材整理，開始剪輯旅行影片',p:'旅行企劃',done:false},{c:'#EF9F27',t:'官網再次更新，加入旅行相關內容企劃',p:'等待被邀請系列',done:false},{c:'#7F77DD',t:'日文：嘗試用日文聽一段 Podcast 並記重點',p:'日文精進',done:false}]},
+    {lbl:'第 11 週',items:[{c:'#7F77DD',t:'旅行影片剪輯完成，發布 YouTube',p:'旅行企劃',done:false},{c:'#EF9F27',t:'第三支 AI 影片拍攝 + 剪輯',p:'AI 影片製作',done:false},{c:'#7F77DD',t:'吉他：挑戰一首新曲目開始練習',p:'吉他學習',done:false}]},
+    {lbl:'第 12 週',items:[{c:'#EF9F27',t:'第三支 AI 影片發布',p:'AI 影片製作',done:false},{c:'#1D9E75',t:'3 個月投資總複盤：規則有沒有被遵守？',p:'台股投資系統',done:false},{c:'#7F77DD',t:'整體 3 個月回顧：哪些 project 有進展、哪些卡住？',p:'全部 Projects',done:false}]}
+  ]}
+];
+
+// ── State ──────────────────────────────────────────────────
+let pdata = JSON.parse(JSON.stringify(DEF_PDATA));
+let tlData = JSON.parse(JSON.stringify(DEF_TL));
+let saveTimer = null;
+let currentKey = null;
+
+// ── Supabase load / save ───────────────────────────────────
+async function loadFromDB() {
+  try {
+    const { data, error } = await sb.from('projects_data').select('payload').eq('id', ROW_ID).single();
+    if (error && error.code !== 'PGRST116') throw error;
+    if (data?.payload) {
+      const d = data.payload;
+      if (d.title) document.getElementById('ptitle').value = d.title;
+      if (d.sub)   document.getElementById('psub').value   = d.sub;
+      if (d.pdata) pdata  = d.pdata;
+      if (d.tlData) tlData = d.tlData;
+    }
+  } catch(e) {
+    console.warn('load error', e);
+  }
+  renderTimeline();
+  document.getElementById('loading').classList.add('hidden');
+  setPill('就緒', '');
+}
+
+async function saveToDB() {
+  setPill('儲存中…', 'saving');
+  try {
+    const payload = {
+      title:  document.getElementById('ptitle').value,
+      sub:    document.getElementById('psub').value,
+      pdata, tlData
+    };
+    const { error } = await sb.from('projects_data')
+      .upsert({ id: ROW_ID, payload, updated_at: new Date().toISOString() });
+    if (error) throw error;
+    setPill('已儲存 ✓', 'saved');
+    setTimeout(() => setPill('就緒', ''), 3000);
+  } catch(e) {
+    setPill('儲存失敗', 'error');
+    console.error(e);
+  }
+}
+
+function schedule() {
+  setPill('未儲存…', '');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveToDB, 900);
+}
+
+function setPill(txt, cls) {
+  const p = document.getElementById('spill');
+  p.textContent = txt;
+  p.className = 'save-pill' + (cls ? ' ' + cls : '');
+}
+
+// ── UI helpers ─────────────────────────────────────────────
+function sw(tab, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('view-' + tab).classList.add('active');
+}
+
+function sel(el, key) {
+  document.querySelectorAll('.pcard').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentKey = key;
+  renderDetail(key);
+}
+
+function renderDetail(key) {
+  const d = pdata[key];
+  document.getElementById('detail-area').innerHTML = `<div class="detail">
+    <div class="detail-head">
+      <span class="detail-title">${d.title}</span>
+      <span class="badge" style="background:${d.bg};color:${d.fc}">${d.badge}</span>
+    </div>
+    ${d.groups.map((g, gi) => `
+      <span class="freq-lbl">${g.label}</span>
+      ${g.tasks.map((t, ti) => `
+        <div class="task-row">
+          <div class="chk${t.done ? ' on' : ''}" onclick="toggleTask('${key}',${gi},${ti},this)"></div>
+          <div class="task-body">
+            <input class="task-name${t.done ? ' done' : ''}" type="text" value="${esc(t.n)}"
+              oninput="pdata['${key}'].groups[${gi}].tasks[${ti}].n=this.value;schedule()">
+            <input class="task-note" type="text" value="${esc(t.note)}" placeholder="備註"
+              oninput="pdata['${key}'].groups[${gi}].tasks[${ti}].note=this.value;schedule()">
+          </div>
+          <button class="delbtn" onclick="delTask('${key}',${gi},${ti})">×</button>
+        </div>`).join('')}
+      <button class="addbtn" onclick="addTask('${key}',${gi})">＋ 新增任務</button>
+    `).join('')}
+  </div>`;
+}
+
+function toggleTask(key, gi, ti, el) {
+  pdata[key].groups[gi].tasks[ti].done ^= true;
+  el.classList.toggle('on');
+  el.nextElementSibling.querySelector('.task-name').classList.toggle('done');
+  schedule();
+}
+function delTask(key, gi, ti) {
+  pdata[key].groups[gi].tasks.splice(ti, 1);
+  renderDetail(key); schedule();
+}
+function addTask(key, gi) {
+  pdata[key].groups[gi].tasks.push({ n: '新任務', note: '', done: false });
+  renderDetail(key); schedule();
+}
+
+function renderTimeline() {
+  document.getElementById('tl').innerHTML = tlData.map((m, mi) => `
+    <div class="month-block">
+      <div class="month-ttl">${m.month} <span class="mbadge ${m.mb}">${m.mt}</span></div>
+      ${m.weeks.map((w, wi) => `
+        <div class="week-row">
+          <input class="week-lbl" type="text" value="${esc(w.lbl)}"
+            oninput="tlData[${mi}].weeks[${wi}].lbl=this.value;schedule()">
+          <div class="week-items">
+            ${w.items.map((it, ii) => `
+              <div class="week-item">
+                <span class="idot" style="background:${it.c}"></span>
+                <div class="ibody">
+                  <input class="itext${it.done?' done':''}" type="text" value="${esc(it.t)}"
+                    oninput="tlData[${mi}].weeks[${wi}].items[${ii}].t=this.value;schedule()">
+                  <input class="iproj" type="text" value="${esc(it.p)}"
+                    oninput="tlData[${mi}].weeks[${wi}].items[${ii}].p=this.value;schedule()">
+                </div>
+                <button class="delbtn"
+                  onclick="tlData[${mi}].weeks[${wi}].items.splice(${ii},1);renderTimeline();schedule()">×</button>
+              </div>`).join('')}
+            <button class="add-week-btn"
+              onclick="tlData[${mi}].weeks[${wi}].items.push({c:'#7F77DD',t:'新任務',p:'Project',done:false});renderTimeline();schedule()">
+              ＋ 新增
+            </button>
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+function esc(s) { return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+// ── Boot ───────────────────────────────────────────────────
+loadFromDB();
+</script>
+</body>
+</html>
