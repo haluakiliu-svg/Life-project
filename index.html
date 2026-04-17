@@ -42,6 +42,18 @@ html,body{background:#0f0f0f;color:#e0ddd6;font-family:-apple-system,BlinkMacSys
 .proj-title:focus{border-bottom:1px solid #333}
 .proj-del-btn{opacity:0.2;font-size:14px;color:#c03030;background:none;border:none;cursor:pointer;padding:2px 5px;transition:opacity .15s;flex-shrink:0}
 .proj-del-btn:hover{opacity:1}
+.collapse-btn{background:none;border:none;cursor:pointer;color:#444;font-size:16px;padding:0 4px;transition:color .15s,transform .2s;flex-shrink:0;line-height:1}
+.collapse-btn:hover{color:#aaa}
+.collapse-btn.collapsed{transform:rotate(-90deg)}
+.card-body{transition:opacity .15s}
+.card-body.hidden{display:none}
+.color-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;cursor:pointer;position:relative;transition:transform .15s}
+.color-dot:hover{transform:scale(1.4)}
+.color-picker-popup{position:absolute;top:20px;left:0;background:#1e1e1e;border:0.5px solid #333;border-radius:10px;padding:8px;display:flex;gap:6px;flex-wrap:wrap;width:130px;z-index:100;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+.color-picker-popup.hidden{display:none}
+.color-option{width:20px;height:20px;border-radius:50%;cursor:pointer;transition:transform .15s;border:2px solid transparent}
+.color-option:hover{transform:scale(1.2)}
+.color-option.selected{border-color:#fff}
 
 /* 副標（大）*/
 .proj-sub{font-size:19px;color:#ccc;background:transparent;border:none;outline:none;width:100%;caret-color:#4caf7d;margin-bottom:10px;line-height:1.4;resize:none;overflow:hidden;font-family:inherit;display:block;padding:0;font-weight:400}
@@ -245,11 +257,19 @@ function renderProjects(){
       ${sec.cards.map((card,ci)=>`
         <div class="project-card">
           <div class="proj-title-row">
-            <span class="proj-dot" style="background:${sec.color}"></span>
+            <div class="color-dot" style="background:${sec.color}" onclick="toggleColorPicker(event,${si},${ci},'${sec.color}')">
+              <div class="color-picker-popup hidden" id="cp-${si}-${ci}">
+                ${['#EF9F27','#1D9E75','#7F77DD','#E24B4A','#378ADD','#D4537E','#639922','#888780'].map(col=>`
+                  <div class="color-option${sec.color===col?' selected':''}" style="background:${col}"
+                    onclick="pickColor(event,${si},${ci},'${col}')"></div>`).join('')}
+              </div>
+            </div>
             <input class="proj-title" type="text" value="${esc(card.title)}" placeholder="大標題"
               oninput="projects[${si}].cards[${ci}].title=this.value;schedule()">
+            <button class="collapse-btn${card.collapsed?' collapsed':''}" onclick="toggleCollapse(${si},${ci})">▼</button>
             <button class="proj-del-btn" onclick="delCard(${si},${ci})">✕</button>
           </div>
+          <div class="card-body${card.collapsed?' hidden':''}">
           <textarea class="proj-sub" rows="1" placeholder="副標 — 一句話定位"
             oninput="projects[${si}].cards[${ci}].sub=this.value;ar(this);schedule()"
           >${esc(card.sub)}</textarea>
@@ -277,6 +297,7 @@ function renderProjects(){
               <button class="add-item-btn" onclick="addItem(${si},${ci},${sti})">＋ 新增項目</button>
             </div>`).join('')}
           <button class="add-stage-btn" onclick="addStage(${si},${ci})">＋ 新增進度標</button>
+          </div>
         </div>`).join('')}
       <button class="add-proj-btn" onclick="addCard(${si})">＋ 新增 Project</button>
     </div>`).join('');
@@ -345,6 +366,29 @@ function renderTimeline(){
 }
 
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function toggleCollapse(si,ci){
+  projects[si].cards[ci].collapsed=!projects[si].cards[ci].collapsed;
+  renderProjects();schedule();
+}
+
+function toggleColorPicker(e,si,ci,cur){
+  e.stopPropagation();
+  const popup=document.getElementById('cp-'+si+'-'+ci);
+  document.querySelectorAll('.color-picker-popup').forEach(p=>{if(p!==popup)p.classList.add('hidden');});
+  popup.classList.toggle('hidden');
+}
+
+function pickColor(e,si,ci,col){
+  e.stopPropagation();
+  projects[si].color=col;
+  document.querySelectorAll('.color-picker-popup').forEach(p=>p.classList.add('hidden'));
+  renderProjects();schedule();
+}
+
+document.addEventListener('click',()=>{
+  document.querySelectorAll('.color-picker-popup').forEach(p=>p.classList.add('hidden'));
+});
 
 loadFromDB();
 </script>
