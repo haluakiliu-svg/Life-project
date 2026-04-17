@@ -103,6 +103,10 @@ html,body{background:#0f0f0f;color:#e0ddd6;font-family:-apple-system,BlinkMacSys
 .project-card{transition:opacity .15s,transform .15s}
 .project-card.dragging{opacity:.4;transform:scale(.98)}
 .project-card.drag-over{border-color:#4caf7d;border-style:dashed}
+.stage-block.drag-over{border:0.5px dashed #4caf7d;border-radius:8px;background:#0a1a0a}
+.item-row.drag-over{border-radius:6px;background:#0a1a0a;outline:1px dashed #4caf7d}
+.stage-block.dragging{opacity:.35}
+.item-row.dragging{opacity:.35}
 .drag-handle{cursor:grab;color:#2a2a2a;font-size:16px;padding:0 4px;transition:color .15s;flex-shrink:0;user-select:none;line-height:1}
 .drag-handle:hover{color:#666}
 .drag-handle:active{cursor:grabbing}
@@ -264,11 +268,9 @@ function renderProjects(){
     <div class="priority-section">
       <div class="priority-label">${sec.priority} <hr></div>
       ${sec.cards.map((card,ci)=>`
-        <div class="project-card">
+        <div class="project-card" id="card-${si}-${ci}">
           <div class="proj-title-row" draggable="false">
-            <span class="drag-handle" draggable="true"
-              onmousedown="initDrag(event,${si},${ci})"
-              title="拖曳移動">⠿</span>
+            <span class="drag-handle" data-type="card" data-si="${si}" data-ci="${ci}" title="拖曳移動">⠿</span>
             <div class="color-dot" style="background:${sec.color}" onclick="toggleColorPicker(event,${si},${ci},'${sec.color}')">
               <div class="color-picker-popup hidden" id="cp-${si}-${ci}">
                 ${['#EF9F27','#1D9E75','#7F77DD','#E24B4A','#378ADD','#D4537E','#639922','#888780'].map(col=>`
@@ -290,15 +292,17 @@ function renderProjects(){
           >${esc(card.desc||'')}</textarea>
           <hr class="card-divider">
           ${card.stages.map((stage,sti)=>`
-            <div class="stage-block">
+            <div class="stage-block" id="stage-${si}-${ci}-${sti}">
               <div class="stage-header">
+                <span class="drag-handle" data-type="stage" data-si="${si}" data-ci="${ci}" data-sti="${sti}" title="拖曳移動">⠿</span>
                 <input class="stage-label" type="text" value="${esc(stage.label)}" placeholder="進度標題"
                   oninput="projects[${si}].cards[${ci}].stages[${sti}].label=this.value;schedule()">
                 <button class="stage-del-btn" onclick="delStage(${si},${ci},${sti})">✕</button>
               </div>
-              <div class="items-list">
+              <div class="items-list" id="items-${si}-${ci}-${sti}">
                 ${stage.items.map((item,ii)=>`
-                  <div class="item-row">
+                  <div class="item-row" id="item-${si}-${ci}-${sti}-${ii}">
+                    <span class="drag-handle" style="font-size:12px;margin-top:4px" data-type="item" data-si="${si}" data-ci="${ci}" data-sti="${sti}" data-ii="${ii}" title="拖曳移動">⠿</span>
                     <div class="item-chk${item.done?' on':''}" onclick="toggleItem(${si},${ci},${sti},${ii},this)"></div>
                     <textarea class="item-text${item.done?' done':''}" rows="1" placeholder="項目內容"
                       oninput="projects[${si}].cards[${ci}].stages[${sti}].items[${ii}].n=this.value;ar(this);schedule()"
@@ -414,53 +418,107 @@ function importData(e){
 }
 
 // ── Drag & Drop ───────────────────────────────────
-let dragSrc=null, dragSi=null, dragCi=null;
-
-function initDrag(e, si, ci){
-  dragSi=si; dragCi=ci;
-  // Let the dragstart fire on the card
-  const card=e.target.closest('.project-card');
-  card.setAttribute('draggable','true');
-  card.ondragstart=ev=>{
-    dragSrc=card;
-    ev.dataTransfer.effectAllowed='move';
-    ev.dataTransfer.setData('text/plain','');
-    setTimeout(()=>card.classList.add('dragging'),0);
-  };
-  card.ondragend=ev=>{
-    card.classList.remove('dragging');
-    card.removeAttribute('draggable');
-    card.ondragstart=null;
-    card.ondragend=null;
-    document.querySelectorAll('.project-card').forEach(c=>c.classList.remove('drag-over'));
-    dragSrc=null;
-  };
-}
+let dragInfo=null;
 
 function setupDragTargets(){
+  // Wire all drag handles
+  document.querySelectorAll('.drag-handle').forEach(handle=>{
+    handle.onmousedown=e=>{
+      const type=handle.dataset.type;
+      const si=parseInt(handle.dataset.si);
+      const ci=parseInt(handle.dataset.ci);
+      const sti=handle.dataset.sti!==undefined?parseInt(handle.dataset.sti):null;
+      const ii=handle.dataset.ii!==undefined?parseInt(handle.dataset.ii):null;
+      let el;
+      if(type==='card') el=document.getElementById('card-'+si+'-'+ci);
+      else if(type==='stage') el=document.getElementById('stage-'+si+'-'+ci+'-'+sti);
+      else if(type==='item') el=document.getElementById('item-'+si+'-'+ci+'-'+sti+'-'+ii);
+      if(!el) return;
+      el.setAttribute('draggable','true');
+      el.addEventListener('dragstart',ev=>{
+        dragInfo={type,si,ci,sti,ii};
+        ev.dataTransfer.effectAllowed='move';
+        ev.dataTransfer.setData('text/plain',JSON.stringify(dragInfo));
+        setTimeout(()=>el.classList.add('dragging'),0);
+      },{once:true});
+      el.addEventListener('dragend',()=>{
+        el.classList.remove('dragging');
+        el.removeAttribute('draggable');
+        document.querySelectorAll('.drag-over').forEach(x=>x.classList.remove('drag-over'));
+        dragInfo=null;
+      },{once:true});
+    };
+  });
+
+  // Card drop targets
   document.querySelectorAll('.project-card').forEach(card=>{
     card.ondragover=e=>{
-      e.preventDefault();
-      if(card!==dragSrc) card.classList.add('drag-over');
+      if(!dragInfo||dragInfo.type!=='card') return;
+      e.preventDefault(); e.stopPropagation();
+      if(!card.classList.contains('dragging')) card.classList.add('drag-over');
     };
-    card.ondragleave=()=>card.classList.remove('drag-over');
+    card.ondragleave=e=>{
+      if(!e.relatedTarget||!card.contains(e.relatedTarget)) card.classList.remove('drag-over');
+    };
     card.ondrop=e=>{
-      e.preventDefault();
+      e.preventDefault(); e.stopPropagation();
       card.classList.remove('drag-over');
-      if(!dragSrc||card===dragSrc) return;
-      // Find target si/ci from card id
-      const id=card.id; // card-si-ci
-      const parts=id.split('-');
-      const tsi=parseInt(parts[1]), tci=parseInt(parts[2]);
-      if(tsi!==dragSi) return; // only within same priority section
-      // Swap cards
-      const moved=projects[dragSi].cards.splice(dragCi,1)[0];
-      const insertAt=tci > dragCi ? tci : tci;
-      projects[tsi].cards.splice(insertAt,0,moved);
-      dragSi=null; dragCi=null;
-      renderProjects();
-      setupDragTargets();
-      schedule();
+      if(!dragInfo||dragInfo.type!=='card') return;
+      const id=card.id.replace('card-','').split('-');
+      const tsi=parseInt(id[0]),tci=parseInt(id[1]);
+      const {si:fsi,ci:fci}=dragInfo;
+      if(isNaN(tsi)||isNaN(tci)||fsi!==tsi||fci===tci) return;
+      const moved=projects[fsi].cards.splice(fci,1)[0];
+      projects[tsi].cards.splice(fci<tci?tci-1:tci,0,moved);
+      renderProjects(); setupDragTargets(); schedule();
+    };
+  });
+
+  // Stage drop targets
+  document.querySelectorAll('.stage-block').forEach(stageEl=>{
+    stageEl.ondragover=e=>{
+      if(!dragInfo||dragInfo.type!=='stage') return;
+      e.preventDefault(); e.stopPropagation();
+      if(!stageEl.classList.contains('dragging')) stageEl.classList.add('drag-over');
+    };
+    stageEl.ondragleave=e=>{
+      if(!e.relatedTarget||!stageEl.contains(e.relatedTarget)) stageEl.classList.remove('drag-over');
+    };
+    stageEl.ondrop=e=>{
+      e.preventDefault(); e.stopPropagation();
+      stageEl.classList.remove('drag-over');
+      if(!dragInfo||dragInfo.type!=='stage') return;
+      const id=stageEl.id.replace('stage-','').split('-');
+      const tsi=parseInt(id[0]),tci=parseInt(id[1]),tsti=parseInt(id[2]);
+      const {si:fsi,ci:fci,sti:fsti}=dragInfo;
+      if(isNaN(tsti)||fsi!==tsi||fci!==tci||fsti===tsti) return;
+      const moved=projects[fsi].cards[fci].stages.splice(fsti,1)[0];
+      projects[tsi].cards[tci].stages.splice(fsti<tsti?tsti-1:tsti,0,moved);
+      renderProjects(); setupDragTargets(); schedule();
+    };
+  });
+
+  // Item drop targets
+  document.querySelectorAll('.item-row').forEach(itemEl=>{
+    itemEl.ondragover=e=>{
+      if(!dragInfo||dragInfo.type!=='item') return;
+      e.preventDefault(); e.stopPropagation();
+      if(!itemEl.classList.contains('dragging')) itemEl.classList.add('drag-over');
+    };
+    itemEl.ondragleave=e=>{
+      if(!e.relatedTarget||!itemEl.contains(e.relatedTarget)) itemEl.classList.remove('drag-over');
+    };
+    itemEl.ondrop=e=>{
+      e.preventDefault(); e.stopPropagation();
+      itemEl.classList.remove('drag-over');
+      if(!dragInfo||dragInfo.type!=='item') return;
+      const id=itemEl.id.replace('item-','').split('-');
+      const tsi=parseInt(id[0]),tci=parseInt(id[1]),tsti=parseInt(id[2]),tii=parseInt(id[3]);
+      const {si:fsi,ci:fci,sti:fsti,ii:fii}=dragInfo;
+      if(isNaN(tii)||fsi!==tsi||fci!==tci||fsti!==tsti||fii===tii) return;
+      const moved=projects[fsi].cards[fci].stages[fsti].items.splice(fii,1)[0];
+      projects[tsi].cards[tci].stages[tsti].items.splice(fii<tii?tii-1:tii,0,moved);
+      renderProjects(); setupDragTargets(); schedule();
     };
   });
 }
