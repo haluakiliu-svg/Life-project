@@ -133,6 +133,8 @@ html,body{background:#0f0f0f;color:#e0ddd6;font-family:-apple-system,BlinkMacSys
   <div class="topbar">
     <input class="page-title" id="ptitle" type="text" value="Life Projects Dashboard" oninput="schedule()">
     <div class="save-pill" id="spill">就緒</div>
+    <button onclick="exportData()" style="font-size:12px;padding:4px 10px;border-radius:16px;border:0.5px solid #2a2a2a;background:transparent;color:#888;cursor:pointer;transition:all .15s;white-space:nowrap" onmouseover="this.style.color='#ddd'" onmouseout="this.style.color='#888'">↓ 備份</button>
+    <label style="font-size:12px;padding:4px 10px;border-radius:16px;border:0.5px solid #2a2a2a;background:transparent;color:#888;cursor:pointer;transition:all .15s;white-space:nowrap" onmouseover="this.style.color='#ddd'" onmouseout="this.style.color='#888'">↑ 還原<input type="file" accept=".json" onchange="importData(event)" style="display:none"></label>
   </div>
   <input class="page-sub" id="psub" type="text" value="重要順序：事業 > 投資 > 好奇　｜　核心：打造一個值得被記住的創作者。" oninput="schedule()">
   <div class="tabs">
@@ -366,6 +368,40 @@ function renderTimeline(){
 }
 
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function exportData(){
+  const payload={
+    title:document.getElementById('ptitle').value,
+    sub:document.getElementById('psub').value,
+    projects, tlData,
+    exportedAt: new Date().toLocaleString('zh-TW')
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='life-projects-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+}
+
+function importData(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      apply(d);
+      renderProjects();
+      renderTimeline();
+      saveToDB();
+      alert('還原成功！');
+    }catch(err){
+      alert('檔案格式錯誤，請使用備份匯出的 JSON 檔案。');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value='';
+}
 
 function toggleCollapse(si,ci){
   projects[si].cards[ci].collapsed=!projects[si].cards[ci].collapsed;
