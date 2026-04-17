@@ -100,6 +100,12 @@ html,body{background:#0f0f0f;color:#e0ddd6;font-family:-apple-system,BlinkMacSys
 .add-stage-btn:hover{color:#4caf7d}
 .add-proj-btn{width:100%;padding:13px;border:0.5px dashed #222;border-radius:16px;background:transparent;font-size:15px;color:#3a3a3a;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:14px}
 .add-proj-btn:hover{border-color:#3a3a3a;color:#4caf7d}
+.project-card{transition:opacity .15s,transform .15s}
+.project-card.dragging{opacity:.4;transform:scale(.98)}
+.project-card.drag-over{border-color:#4caf7d;border-style:dashed}
+.drag-handle{cursor:grab;color:#2a2a2a;font-size:16px;padding:0 4px;transition:color .15s;flex-shrink:0;user-select:none;line-height:1}
+.drag-handle:hover{color:#666}
+.drag-handle:active{cursor:grabbing}
 
 /* timeline */
 .month-block{margin-bottom:2.5rem}
@@ -218,6 +224,7 @@ async function loadFromDB(){
     else{const ls=localStorage.getItem(LS_KEY);if(ls) apply(JSON.parse(ls));}
   }catch(e){const ls=localStorage.getItem(LS_KEY);if(ls) apply(JSON.parse(ls));}
   renderProjects();
+  setupDragTargets();
   renderTimeline();
   document.getElementById('loading').classList.add('hidden');
   setPill('就緒','');
@@ -258,7 +265,10 @@ function renderProjects(){
       <div class="priority-label">${sec.priority} <hr></div>
       ${sec.cards.map((card,ci)=>`
         <div class="project-card">
-          <div class="proj-title-row">
+          <div class="proj-title-row" draggable="false">
+            <span class="drag-handle" draggable="true"
+              onmousedown="initDrag(event,${si},${ci})"
+              title="拖曳移動">⠿</span>
             <div class="color-dot" style="background:${sec.color}" onclick="toggleColorPicker(event,${si},${ci},'${sec.color}')">
               <div class="color-picker-popup hidden" id="cp-${si}-${ci}">
                 ${['#EF9F27','#1D9E75','#7F77DD','#E24B4A','#378ADD','#D4537E','#639922','#888780'].map(col=>`
@@ -403,9 +413,61 @@ function importData(e){
   e.target.value='';
 }
 
+// ── Drag & Drop ───────────────────────────────────
+let dragSrc=null, dragSi=null, dragCi=null;
+
+function initDrag(e, si, ci){
+  dragSi=si; dragCi=ci;
+  // Let the dragstart fire on the card
+  const card=e.target.closest('.project-card');
+  card.setAttribute('draggable','true');
+  card.ondragstart=ev=>{
+    dragSrc=card;
+    ev.dataTransfer.effectAllowed='move';
+    ev.dataTransfer.setData('text/plain','');
+    setTimeout(()=>card.classList.add('dragging'),0);
+  };
+  card.ondragend=ev=>{
+    card.classList.remove('dragging');
+    card.removeAttribute('draggable');
+    card.ondragstart=null;
+    card.ondragend=null;
+    document.querySelectorAll('.project-card').forEach(c=>c.classList.remove('drag-over'));
+    dragSrc=null;
+  };
+}
+
+function setupDragTargets(){
+  document.querySelectorAll('.project-card').forEach(card=>{
+    card.ondragover=e=>{
+      e.preventDefault();
+      if(card!==dragSrc) card.classList.add('drag-over');
+    };
+    card.ondragleave=()=>card.classList.remove('drag-over');
+    card.ondrop=e=>{
+      e.preventDefault();
+      card.classList.remove('drag-over');
+      if(!dragSrc||card===dragSrc) return;
+      // Find target si/ci from card id
+      const id=card.id; // card-si-ci
+      const parts=id.split('-');
+      const tsi=parseInt(parts[1]), tci=parseInt(parts[2]);
+      if(tsi!==dragSi) return; // only within same priority section
+      // Swap cards
+      const moved=projects[dragSi].cards.splice(dragCi,1)[0];
+      const insertAt=tci > dragCi ? tci : tci;
+      projects[tsi].cards.splice(insertAt,0,moved);
+      dragSi=null; dragCi=null;
+      renderProjects();
+      setupDragTargets();
+      schedule();
+    };
+  });
+}
+
 function toggleCollapse(si,ci){
   projects[si].cards[ci].collapsed=!projects[si].cards[ci].collapsed;
-  renderProjects();schedule();
+  renderProjects();setupDragTargets();schedule();
 }
 
 function toggleColorPicker(e,si,ci,cur){
